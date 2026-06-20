@@ -1,0 +1,19 @@
+[tool.poetry]
+name = "basic-ai-agent"
+version = "0.1.0"
+description = "A minimal coding agent built from scratch for learning (see SPEC.md)"
+authors = ["Konstantin Chirikhin <chirihin@gmail.com>"]
+readme = "README.md"
+packages = [{ include = "agent" }]
+
+[tool.poetry.dependencies]
+python = "^3.10"
+openai = "^1.60.0"
+python-dotenv = "^1.0.0"
+
+[tool.poetry.scripts]
+agent = "agent.cli:main"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
