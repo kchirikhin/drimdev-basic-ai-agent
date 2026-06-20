@@ -55,9 +55,23 @@ A local Ollama server with the `qwen2.5-coder:7b` model must be running and
 reachable for the defaults to work. Any OpenAI-compatible endpoint works by
 overriding the variables above.
 
+## Code quality
+
+Ruff (lint + format) and mypy (type checking) run via pre-commit. Before
+finishing any change, make sure they pass:
+
+```bash
+poetry run ruff format && poetry run ruff check --fix && poetry run mypy agent
+```
+
+Config is in `pyproject.toml` (`[tool.ruff]`, `[tool.mypy]`) and
+`.pre-commit-config.yaml`. The hooks call `poetry run ...` so versions match the
+project. Keep the code mypy-clean; prefer fixing types over broad ignores.
+
 ## Conventions
 
-- Keep dependencies minimal; add them via `poetry add`.
+- Keep dependencies minimal; add them via `poetry add` (dev tools via
+  `poetry add --group dev`).
 - Code and identifiers in English; comments only where they aid understanding.
 - Keep each step's entrypoint working — don't break earlier steps when adding a
   new one.

@@ -52,3 +52,26 @@ Agent: Your name is Kon.
 ```
 
 Type `exit` (or press `Ctrl-C`) to quit.
+
+## Development
+
+Code quality is enforced with **Ruff** (lint + format) and **mypy** (type
+checking), wired together via **pre-commit**.
+
+After `poetry install`, enable the git hook once:
+
+```bash
+poetry run pre-commit install
+```
+
+The hooks then run automatically on every `git commit`. To run them by hand:
+
+```bash
+poetry run pre-commit run --all-files   # all hooks on the whole repo
+poetry run ruff format                  # format
+poetry run ruff check --fix             # lint (with autofix)
+poetry run mypy agent                   # type-check
+```
+
+Tool configuration lives in `pyproject.toml` (`[tool.ruff]`, `[tool.mypy]`); the
+hook definitions are in `.pre-commit-config.yaml`.

@@ -1,0 +1,27 @@
+# Run with: poetry run pre-commit install   (then hooks run automatically on commit)
+# Manually:  poetry run pre-commit run --all-files
+#
+# We use local hooks that call `poetry run ...` so the tool versions match the
+# ones pinned in pyproject.toml, and mypy can see the project's installed deps.
+repos:
+  - repo: local
+    hooks:
+      - id: ruff-format
+        name: ruff format
+        entry: poetry run ruff format
+        language: system
+        types: [python]
+
+      - id: ruff-lint
+        name: ruff lint
+        entry: poetry run ruff check --fix
+        language: system
+        types: [python]
+
+      - id: mypy
+        name: mypy
+        entry: poetry run mypy
+        language: system
+        types: [python]
+        pass_filenames: false
+        args: ["agent"]

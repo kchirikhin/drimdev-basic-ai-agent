@@ -21,8 +21,9 @@ class Agent:
     def __init__(self) -> None:
         self.client = get_client()
         # The growing message list. It starts with the system prompt and gains
-        # a user + assistant message on every turn.
-        self.messages: list[dict] = [
+        # a user + assistant message on every turn. We keep them as plain dicts
+        # for clarity (the SDK also accepts richer typed message objects).
+        self.messages: list[dict[str, str]] = [
             {"role": "system", "content": _load_system_prompt()}
         ]
 
@@ -32,9 +33,11 @@ class Agent:
 
         response = self.client.chat.completions.create(
             model=OPENAI_MODEL,
-            messages=self.messages,
+            messages=self.messages,  # type: ignore[arg-type]  # plain dicts; SDK wants TypedDicts
         )
-        reply = response.choices[0].message.content
+        # `content` is Optional in the SDK; fall back to "" if the model
+        # returns no text.
+        reply = response.choices[0].message.content or ""
 
         self.messages.append({"role": "assistant", "content": reply})
         return reply
