@@ -17,6 +17,10 @@ behaviour for that project.
 Step 4 adds **skills** with *progressive disclosure*: only each skill's name and
 description go into the system prompt by default; the model pulls a skill's full
 body into context on demand via the `load_skill` tool.
+
+Step 5 adds **subagents**: via the `task` tool the agent spawns a fresh, isolated
+Agent to handle a focused sub-task and gets back only its summary — keeping the
+main context clean.
 """
 
 import json
@@ -24,7 +28,7 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
-from agent import skills, tools
+from agent import skills, subagents, tools
 from agent.client import get_client
 from agent.config import OPENAI_MODEL, SYSTEM_PROMPT_PATH
 
@@ -88,26 +92,32 @@ def _build_system_prompt(
 
 
 class Agent:
-    """Holds the conversation history and runs the agentic loop."""
+    """Holds the conversation history and runs the agentic loop.
 
-    def __init__(self) -> None:
+    `depth` is the delegation level: 0 is the top-level agent, and each subagent
+    spawned via the `task` tool is one deeper. It gates further delegation.
+    """
+
+    def __init__(self, depth: int = 0) -> None:
+        self.depth = depth
         self.client = get_client()
         # Discover project instructions (AGENTS.md) and skills from the cwd.
         self.agents_md_path = _find_agents_md(Path.cwd())
         self.skills = skills.SkillLibrary(skills.discover_skills(Path.cwd()))
         # The tools offered to the model: the static ones, plus load_skill when
-        # the project actually has skills to load.
+        # the project has skills, plus `task` when we may still delegate deeper.
         self.tools: list[dict] = [*tools.TOOLS]
         if self.skills:
             self.tools.append(skills.LOAD_SKILL_TOOL)
+        self.can_delegate = depth < subagents.MAX_DEPTH
+        if self.can_delegate:
+            self.tools.append(subagents.TASK_TOOL)
         # The growing message list. It starts with the system prompt and gains
         # user, assistant, and `tool` messages as the conversation proceeds.
-        self.messages: list[dict[str, Any]] = [
-            {
-                "role": "system",
-                "content": _build_system_prompt(self.agents_md_path, self.skills),
-            }
-        ]
+        system = _build_system_prompt(self.agents_md_path, self.skills)
+        if depth > 0:
+            system += subagents.SUBAGENT_SYSTEM_NOTE
+        self.messages: list[dict[str, Any]] = [{"role": "system", "content": system}]
 
     def _complete(self) -> Any:
         """Call the model, retrying if it returns a blank, no-tool response.
@@ -169,10 +179,14 @@ class Agent:
             for tool_call in calls:
                 name = tool_call.function.name
                 arguments = json.loads(tool_call.function.arguments or "{}")
-                # load_skill is handled here (it needs this session's skills);
-                # everything else goes to the stateless tools dispatcher.
+                # load_skill and task need this session's state, so they are
+                # handled here; everything else goes to the stateless dispatcher.
                 if name == "load_skill":
                     result = self.skills.load(arguments.get("name", ""))
+                elif name == "task":
+                    result = self._run_subagent(
+                        arguments.get("description", ""), on_tool_event
+                    )
                 else:
                     result = tools.execute_tool(name, arguments)
                 if on_tool_event is not None:
@@ -186,3 +200,20 @@ class Agent:
                 )
 
         return "(stopped: reached the tool-call limit for this turn)"
+
+    def _run_subagent(self, description: str, on_tool_event: ToolEvent | None) -> str:
+        """Spawn a fresh, isolated Agent for one task and return its summary.
+
+        The subagent has its own message list (it cannot see this conversation),
+        so only the `description` and its tools inform it — and only its final
+        reply comes back. We forward its tool events with a `↳` marker so the
+        nested work is visible, even though it never enters our context.
+        """
+        subagent = Agent(depth=self.depth + 1)
+
+        def sub_event(tool_name: str, args: dict, result: str) -> None:
+            # No-op if the parent isn't displaying a trace.
+            if on_tool_event is not None:
+                on_tool_event(f"↳ {tool_name}", args, result)
+
+        return subagent.chat(description, on_tool_event=sub_event)

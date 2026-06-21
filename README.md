@@ -81,6 +81,19 @@ stays small while specialized know-how is available when needed. The CLI lists
 discovered skills on startup, and you'll see a `⚙ load_skill(...)` trace when one
 is pulled in. An example `commit-message` skill ships in `skills/`.
 
+## Step 5 — Subagents
+
+The agent can delegate a focused sub-task to a **subagent** via the `task` tool.
+A subagent is a fresh `Agent` with its **own isolated context**, its own agentic
+loop, and the same tools. It runs the task to completion and returns only a
+short summary — so the parent's context never fills up with the subagent's
+intermediate steps (the whole point: farm out a noisy sub-task to keep the main
+conversation clean).
+
+In the trace, the subagent's own tool calls are shown with a `↳` marker, and the
+delegating `⚙ task(...)` call shows the summary that comes back. Delegation depth
+is capped (`subagents.MAX_DEPTH`) so subagents can't spawn endlessly.
+
 ## Setup
 
 1. Install dependencies:

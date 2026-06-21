@@ -112,6 +112,8 @@ loop) to handle a focused sub-task, then return only the result.
 
 - **Learning goal:** understand context isolation and delegation — why farming
   out a noisy sub-task keeps the main context clean.
+- **Mechanism:** a `task` tool spawns a fresh `Agent` (own message list + loop +
+  tools); only its final summary returns. A depth cap prevents endless nesting.
 - **Done when:** the main agent can delegate a task to a subagent and use its
   summarized result.
 

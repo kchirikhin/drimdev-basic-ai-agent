@@ -44,6 +44,10 @@ codebase. Don't pull in agent frameworks; keep the model interaction explicit.
   (Step 4). Progressive disclosure: only names + descriptions go in the system
   prompt; bodies load on demand via the `load_skill` tool (dispatched in
   `loop.py`). Example skill lives in `skills/`.
+- `agent/subagents.py` — the `task` tool schema + `MAX_DEPTH` + subagent system
+  note (Step 5). The `Agent` spawns a subagent (a fresh `Agent(depth=...)`) in
+  `loop.py`'s `_run_subagent`; only the subagent's final summary returns to the
+  parent. `depth` gates further delegation.
 - `agent/cli.py` — REPL, spinner, and the grey `⚙` tool-call trace.
 - `agent/client.py`, `agent/config.py` — OpenAI client factory and env config.
 
