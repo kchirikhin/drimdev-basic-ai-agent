@@ -86,6 +86,8 @@ project conventions.
 
 - **Learning goal:** understand how project memory/instructions steer an agent
   without retraining — it's just context injection.
+- **Discovery:** search the working directory, then walk up to parent dirs, and
+  use the nearest `AGENTS.md`.
 - **Done when:** placing an `AGENTS.md` in the working directory measurably
   changes the agent's behavior.
 

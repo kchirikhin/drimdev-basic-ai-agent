@@ -50,6 +50,17 @@ external guard independent of the agent's own (later) permission system.
 > `tool_calls`. `qwen2.5:7b-instruct` works well in Ollama; the `qwen2.5-coder`
 > models do *not* reliably emit tool calls. Set `OPENAI_MODEL` accordingly.
 
+## Step 3 — AGENTS.md
+
+On startup the agent looks for an `AGENTS.md` file — in the working directory,
+then walking up to parent directories — and appends its contents to the system
+prompt. This is plain context injection (no retraining), but it lets a project
+steer the agent's behaviour: coding conventions, what to do or avoid, etc. When
+one is found, the CLI prints `Loaded project instructions from <path>`.
+
+For example, an `AGENTS.md` containing "Always use 4-space indentation and add
+type hints" will shape how the agent writes code in that project.
+
 ## Setup
 
 1. Install dependencies:

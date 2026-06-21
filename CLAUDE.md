@@ -34,7 +34,9 @@ codebase. Don't pull in agent frameworks; keep the model interaction explicit.
 
 - `agent/loop.py` — `Agent` class and the agentic loop (Steps 1–2): grows the
   message list, and when the model returns `tool_calls`, runs each tool and
-  feeds results back until the model answers with text.
+  feeds results back until the model answers with text. Also discovers an
+  `AGENTS.md` (Step 3) by searching cwd upward and appends it to the system
+  prompt.
 - `agent/tools.py` — the six tools (`read`/`write`/`update`/`delete`/`list`/
   `execute`) as OpenAI function-calling schemas plus an `execute_tool`
   dispatcher. Tools are intentionally unsandboxed until Step 6.

@@ -8,10 +8,16 @@ Step 2 adds the **agentic loop**: the model may answer with `tool_calls` instead
 of text. When it does, we run each tool, append its result as a `tool` message,
 and call the model again — repeating until it produces a final text answer. This
 is what turns a chatbot into an agent.
+
+Step 3 adds **AGENTS.md support**: if the project provides an `AGENTS.md` file
+with conventions/instructions, we load it and append it to the system prompt.
+This is just context injection — no retraining — yet it steers the agent's
+behaviour for that project.
 """
 
 import json
 from collections.abc import Callable
+from pathlib import Path
 from typing import Any
 
 from agent import tools
@@ -22,6 +28,9 @@ from agent.config import OPENAI_MODEL, SYSTEM_PROMPT_PATH
 # model can't loop on tools forever.
 MAX_ITERATIONS = 10
 
+# Filename holding project-specific instructions for the agent.
+AGENTS_FILENAME = "AGENTS.md"
+
 # Called as on_tool_event(name, arguments, result) after each tool runs, so a UI
 # can show what happened. The Agent itself stays free of any printing.
 ToolEvent = Callable[[str, dict, str], None]
@@ -31,15 +40,44 @@ def _load_system_prompt() -> str:
     return SYSTEM_PROMPT_PATH.read_text(encoding="utf-8")
 
 
+def _find_agents_md(start: Path) -> Path | None:
+    """Find the nearest AGENTS.md, searching `start` then its parent dirs.
+
+    The project root is often above the working directory, so we walk upward and
+    return the first AGENTS.md we find (or None).
+    """
+    for directory in (start, *start.parents):
+        candidate = directory / AGENTS_FILENAME
+        if candidate.is_file():
+            return candidate
+    return None
+
+
+def _build_system_prompt(agents_md: Path | None) -> str:
+    """Base system prompt, plus the project's AGENTS.md if one was found."""
+    prompt = _load_system_prompt()
+    if agents_md is not None:
+        instructions = agents_md.read_text(encoding="utf-8")
+        prompt += (
+            f"\n\n# Project instructions (from {AGENTS_FILENAME})\n\n"
+            "The project provides the following instructions. Treat them as "
+            "authoritative and follow them.\n\n"
+            f"{instructions}"
+        )
+    return prompt
+
+
 class Agent:
     """Holds the conversation history and runs the agentic loop."""
 
     def __init__(self) -> None:
         self.client = get_client()
+        # Discover project instructions (AGENTS.md) from the working directory.
+        self.agents_md_path = _find_agents_md(Path.cwd())
         # The growing message list. It starts with the system prompt and gains
         # user, assistant, and `tool` messages as the conversation proceeds.
         self.messages: list[dict[str, Any]] = [
-            {"role": "system", "content": _load_system_prompt()}
+            {"role": "system", "content": _build_system_prompt(self.agents_md_path)}
         ]
 
     def chat(self, user_message: str, on_tool_event: ToolEvent | None = None) -> str:
