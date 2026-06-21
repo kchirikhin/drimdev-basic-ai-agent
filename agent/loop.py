@@ -32,6 +32,14 @@ from agent.config import OPENAI_MODEL, SYSTEM_PROMPT_PATH
 # model can't loop on tools forever.
 MAX_ITERATIONS = 10
 
+# Small local models occasionally return a degenerate response: no tool calls
+# *and* blank/whitespace content. It is intermittent, so we re-request a few
+# times before giving up rather than showing the user an empty reply.
+BLANK_RETRIES = 3
+
+# Shown when the model keeps returning an empty response even after retries.
+EMPTY_REPLY_NOTICE = "(The model returned an empty response — please try again.)"
+
 # Filename holding project-specific instructions for the agent.
 AGENTS_FILENAME = "AGENTS.md"
 
@@ -101,23 +109,38 @@ class Agent:
             }
         ]
 
-    def chat(self, user_message: str, on_tool_event: ToolEvent | None = None) -> str:
-        """Run one turn, looping over tool calls until the model answers."""
-        self.messages.append({"role": "user", "content": user_message})
+    def _complete(self) -> Any:
+        """Call the model, retrying if it returns a blank, no-tool response.
 
-        for _ in range(MAX_ITERATIONS):
+        The local model sometimes glitches and answers with neither text nor a
+        tool call. Since it is intermittent, re-requesting usually fixes it; we
+        return the first non-blank message, or the last one if all were blank.
+        """
+        message = None
+        for _ in range(BLANK_RETRIES):
             response = self.client.chat.completions.create(
                 model=OPENAI_MODEL,
                 messages=self.messages,  # type: ignore[arg-type]  # plain dicts; SDK wants TypedDicts
                 tools=self.tools,  # type: ignore[arg-type]
             )
             message = response.choices[0].message
+            if message.tool_calls or (message.content or "").strip():
+                return message
+        return message
+
+    def chat(self, user_message: str, on_tool_event: ToolEvent | None = None) -> str:
+        """Run one turn, looping over tool calls until the model answers."""
+        self.messages.append({"role": "user", "content": user_message})
+
+        for _ in range(MAX_ITERATIONS):
+            message = self._complete()
 
             # No tool calls => the model produced its final answer.
             if not message.tool_calls:
                 reply = message.content or ""
                 self.messages.append({"role": "assistant", "content": reply})
-                return reply
+                # Don't show the user a blank line if the model came back empty.
+                return reply if reply.strip() else EMPTY_REPLY_NOTICE
 
             # We only register function tools, so keep just those calls (the SDK
             # union also allows custom tool calls). This also narrows the type.

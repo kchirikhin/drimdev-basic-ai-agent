@@ -49,7 +49,9 @@ codebase. Don't pull in agent frameworks; keep the model interaction explicit.
 
 Tool calling needs a model that emits native `tool_calls` (e.g.
 `qwen2.5:7b-instruct`); `qwen2.5-coder` does not, despite advertising the
-capability.
+capability. The local model is also intermittently flaky — it occasionally
+returns a blank response (no text, no tool call), so `loop.py` retries blanks
+(`BLANK_RETRIES`) before showing `EMPTY_REPLY_NOTICE` instead of an empty line.
 
 ## Environment & running
 
