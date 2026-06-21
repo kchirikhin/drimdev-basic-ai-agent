@@ -71,10 +71,12 @@ calls, and feed results back into the loop.
 - **Learning goal:** understand the tool-use cycle — model requests a tool, host
   runs it, result returns as a `tool` message, model continues. This is what
   turns a chatbot into an agent.
-- **Initial toolset:** read file, write/edit file, list directory, run shell
-  command.
+- **Toolset:** `read`, `write`, `update` (in-place text replacement), `delete`,
+  `list`, `execute` (shell command).
 - **Done when:** the agent can complete a small task (e.g. "create a file and
   run it") by calling tools on its own.
+- **Note:** requires a model that emits native OpenAI `tool_calls`
+  (e.g. `qwen2.5:7b-instruct`); `qwen2.5-coder` does not.
 
 ### Step 3 — AGENTS.md support
 

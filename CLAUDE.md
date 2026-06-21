@@ -30,6 +30,21 @@ When implementing, respect the current step's scope. Favor small, readable code
 that exposes the mechanism over robust code that hides it — this is a teaching
 codebase. Don't pull in agent frameworks; keep the model interaction explicit.
 
+### Code map
+
+- `agent/loop.py` — `Agent` class and the agentic loop (Steps 1–2): grows the
+  message list, and when the model returns `tool_calls`, runs each tool and
+  feeds results back until the model answers with text.
+- `agent/tools.py` — the six tools (`read`/`write`/`update`/`delete`/`list`/
+  `execute`) as OpenAI function-calling schemas plus an `execute_tool`
+  dispatcher. Tools are intentionally unsandboxed until Step 6.
+- `agent/cli.py` — REPL, spinner, and the grey `⚙` tool-call trace.
+- `agent/client.py`, `agent/config.py` — OpenAI client factory and env config.
+
+Tool calling needs a model that emits native `tool_calls` (e.g.
+`qwen2.5:7b-instruct`); `qwen2.5-coder` does not, despite advertising the
+capability.
+
 ## Environment & running
 
 Python 3.10+ with Poetry for dependency management.

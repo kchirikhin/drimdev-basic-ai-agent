@@ -9,10 +9,29 @@ The agent talks to a **local, OpenAI-compatible LLM** (default: Ollama with
 
 ## Step 1 — Agent loop
 
-The current code implements the heart of any agent: a stateful conversation
-loop. An "agent" is fundamentally a loop over a *growing message list* — each
-turn appends the user's message, calls the model, and appends the reply, so the
-model remembers earlier turns. No tools yet (that's Step 2).
+A stateful conversation loop. An "agent" is fundamentally a loop over a *growing
+message list* — each turn appends the user's message, calls the model, and
+appends the reply, so the model remembers earlier turns.
+
+## Step 2 — Tools
+
+The agent can now *act*, using the **OpenAI function-calling protocol**. The tool
+schemas are sent with each request; when the model returns a `tool_call`, the
+host runs the matching function and feeds the result back as a `tool` message,
+looping until the model produces a final answer (see `agent/loop.py` and
+`agent/tools.py`). The CLI prints a grey `⚙` trace of each tool call.
+
+Available tools: `read`, `write`, `update` (replace text in place), `delete`,
+`list`, `execute` (run a shell command).
+
+> ⚠️ **No permissions yet.** The file tools modify the real filesystem and
+> `execute` runs arbitrary shell commands, both in the directory you launched
+> the agent from. Run it in a scratch directory. A permission/approval layer
+> arrives in Step 6.
+
+> **Note on models:** the tools require a model that emits native OpenAI
+> `tool_calls`. `qwen2.5:7b-instruct` works well in Ollama; the `qwen2.5-coder`
+> models do *not* reliably emit tool calls. Set `OPENAI_MODEL` accordingly.
 
 ## Setup
 

@@ -1,9 +1,11 @@
 """Interactive terminal REPL for the agent.
 
 Reads a line, shows a spinner while the model thinks, prints the reply, repeats.
+A grey trace of each tool call makes the agentic loop visible.
 """
 
 import itertools
+import json
 import threading
 import time
 
@@ -15,6 +17,7 @@ RED = "\033[31m"
 GREY = "\033[90m"
 RESET = "\033[0m"
 
+CLEAR_LINE = "\r\033[K"  # carriage return + clear to end of line
 EXIT_COMMANDS = {"exit", "quit", "q"}
 
 
@@ -25,7 +28,17 @@ def spinner(stop_event: threading.Event) -> None:
             break
         print(f"\r{GREY}{frame} thinking...{RESET}", end="", flush=True)
         time.sleep(0.1)
-    print("\r\033[K", end="", flush=True)  # clear the spinner line
+    print(CLEAR_LINE, end="", flush=True)  # clear the spinner line
+
+
+def print_tool_event(name: str, arguments: dict, result: str) -> None:
+    """Show one tool call + a short result summary in grey."""
+    args = json.dumps(arguments, ensure_ascii=False)
+    summary = " ".join(result.split())  # collapse whitespace to one line
+    if len(summary) > 80:
+        summary = summary[:77] + "..."
+    # Clear the spinner's current line first so the trace stays readable.
+    print(f"{CLEAR_LINE}{GREY}⚙ {name}({args}) → {summary}{RESET}", flush=True)
 
 
 def main() -> None:
@@ -50,7 +63,7 @@ def main() -> None:
         spinner_thread = threading.Thread(target=spinner, args=(stop_event,))
         spinner_thread.start()
         try:
-            reply = agent.chat(user_input)
+            reply = agent.chat(user_input, on_tool_event=print_tool_event)
         finally:
             stop_event.set()
             spinner_thread.join()
