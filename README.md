@@ -61,6 +61,26 @@ one is found, the CLI prints `Loaded project instructions from <path>`.
 For example, an `AGENTS.md` containing "Always use 4-space indentation and add
 type hints" will shape how the agent writes code in that project.
 
+## Step 4 — Skills
+
+Skills are packaged, reusable instructions the agent loads **on demand**. They
+live in a `skills/` directory (searched from the working directory upward); each
+skill is a folder with a `SKILL.md` — frontmatter (`name`, `description`) plus a
+body of instructions:
+
+```
+skills/
+  commit-message/
+    SKILL.md
+```
+
+The key idea is **progressive disclosure**: by default only each skill's *name
+and description* go into the system prompt. The full body is fetched only when
+the model calls the `load_skill` tool because a task matches — so the base prompt
+stays small while specialized know-how is available when needed. The CLI lists
+discovered skills on startup, and you'll see a `⚙ load_skill(...)` trace when one
+is pulled in. An example `commit-message` skill ships in `skills/`.
+
 ## Setup
 
 1. Install dependencies:

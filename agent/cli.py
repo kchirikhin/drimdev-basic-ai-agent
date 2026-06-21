@@ -47,6 +47,8 @@ def main() -> None:
     print(f"{GREY}Basic AI Agent — model: {OPENAI_MODEL} @ {OPENAI_BASE_URL}{RESET}")
     if agent.agents_md_path is not None:
         print(f"{GREY}Loaded project instructions from {agent.agents_md_path}{RESET}")
+    if agent.skills:
+        print(f"{GREY}Available skills: {', '.join(agent.skills.names)}{RESET}")
     print(f"{GREY}Type 'exit' or press Ctrl-C to quit.{RESET}\n")
 
     while True:

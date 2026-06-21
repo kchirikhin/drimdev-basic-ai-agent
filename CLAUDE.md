@@ -40,6 +40,10 @@ codebase. Don't pull in agent frameworks; keep the model interaction explicit.
 - `agent/tools.py` — the six tools (`read`/`write`/`update`/`delete`/`list`/
   `execute`) as OpenAI function-calling schemas plus an `execute_tool`
   dispatcher. Tools are intentionally unsandboxed until Step 6.
+- `agent/skills.py` — skill discovery from `skills/` dirs and the `SkillLibrary`
+  (Step 4). Progressive disclosure: only names + descriptions go in the system
+  prompt; bodies load on demand via the `load_skill` tool (dispatched in
+  `loop.py`). Example skill lives in `skills/`.
 - `agent/cli.py` — REPL, spinner, and the grey `⚙` tool-call trace.
 - `agent/client.py`, `agent/config.py` — OpenAI client factory and env config.
 

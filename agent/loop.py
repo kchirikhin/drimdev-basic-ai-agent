@@ -13,6 +13,10 @@ Step 3 adds **AGENTS.md support**: if the project provides an `AGENTS.md` file
 with conventions/instructions, we load it and append it to the system prompt.
 This is just context injection — no retraining — yet it steers the agent's
 behaviour for that project.
+
+Step 4 adds **skills** with *progressive disclosure*: only each skill's name and
+description go into the system prompt by default; the model pulls a skill's full
+body into context on demand via the `load_skill` tool.
 """
 
 import json
@@ -20,7 +24,7 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
-from agent import tools
+from agent import skills, tools
 from agent.client import get_client
 from agent.config import OPENAI_MODEL, SYSTEM_PROMPT_PATH
 
@@ -53,8 +57,14 @@ def _find_agents_md(start: Path) -> Path | None:
     return None
 
 
-def _build_system_prompt(agents_md: Path | None) -> str:
-    """Base system prompt, plus the project's AGENTS.md if one was found."""
+def _build_system_prompt(
+    agents_md: Path | None, skill_library: skills.SkillLibrary
+) -> str:
+    """Base system prompt + the project's AGENTS.md + the skills catalog.
+
+    Note the skills catalog carries only names and descriptions — never the skill
+    bodies. Those are loaded on demand (progressive disclosure).
+    """
     prompt = _load_system_prompt()
     if agents_md is not None:
         instructions = agents_md.read_text(encoding="utf-8")
@@ -64,6 +74,8 @@ def _build_system_prompt(agents_md: Path | None) -> str:
             "authoritative and follow them.\n\n"
             f"{instructions}"
         )
+    if skill_library:
+        prompt += "\n\n" + skill_library.catalog()
     return prompt
 
 
@@ -72,12 +84,21 @@ class Agent:
 
     def __init__(self) -> None:
         self.client = get_client()
-        # Discover project instructions (AGENTS.md) from the working directory.
+        # Discover project instructions (AGENTS.md) and skills from the cwd.
         self.agents_md_path = _find_agents_md(Path.cwd())
+        self.skills = skills.SkillLibrary(skills.discover_skills(Path.cwd()))
+        # The tools offered to the model: the static ones, plus load_skill when
+        # the project actually has skills to load.
+        self.tools: list[dict] = [*tools.TOOLS]
+        if self.skills:
+            self.tools.append(skills.LOAD_SKILL_TOOL)
         # The growing message list. It starts with the system prompt and gains
         # user, assistant, and `tool` messages as the conversation proceeds.
         self.messages: list[dict[str, Any]] = [
-            {"role": "system", "content": _build_system_prompt(self.agents_md_path)}
+            {
+                "role": "system",
+                "content": _build_system_prompt(self.agents_md_path, self.skills),
+            }
         ]
 
     def chat(self, user_message: str, on_tool_event: ToolEvent | None = None) -> str:
@@ -88,7 +109,7 @@ class Agent:
             response = self.client.chat.completions.create(
                 model=OPENAI_MODEL,
                 messages=self.messages,  # type: ignore[arg-type]  # plain dicts; SDK wants TypedDicts
-                tools=tools.TOOLS,  # type: ignore[arg-type]
+                tools=self.tools,  # type: ignore[arg-type]
             )
             message = response.choices[0].message
 
@@ -125,7 +146,12 @@ class Agent:
             for tool_call in calls:
                 name = tool_call.function.name
                 arguments = json.loads(tool_call.function.arguments or "{}")
-                result = tools.execute_tool(name, arguments)
+                # load_skill is handled here (it needs this session's skills);
+                # everything else goes to the stateless tools dispatcher.
+                if name == "load_skill":
+                    result = self.skills.load(arguments.get("name", ""))
+                else:
+                    result = tools.execute_tool(name, arguments)
                 if on_tool_event is not None:
                     on_tool_event(name, arguments, result)
                 self.messages.append(

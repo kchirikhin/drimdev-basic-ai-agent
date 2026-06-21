@@ -99,6 +99,9 @@ into the system prompt.
 
 - **Learning goal:** understand progressive disclosure — keep the base prompt
   small and pull in specialized know-how only when relevant.
+- **Layout:** `skills/<name>/SKILL.md` (frontmatter `name`/`description` + body);
+  only names + descriptions are in the prompt, bodies load via a `load_skill`
+  tool.
 - **Done when:** the agent can list available skills and apply one when a task
   matches it.
 
