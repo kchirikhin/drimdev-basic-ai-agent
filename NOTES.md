@@ -10,3 +10,20 @@
 У меня не было проблем, когда агент ошибался с аргументами, но были другие проблемы:
 1. У модели, которую я использовал в прошлом задании (qwen2.5-coder:7b) заявлена поддержка инструментов в API OpenAI, но не заработало. Claude порекомендовал перейти на другую модель, перешел на qwen2.5:7b-instruct. Я вспомнил, что на работе коллеги пытались настроить qwen-code для работы с моделью qwen-coder, развернутой на корпоративных серверах, и не получалось, очень может быть что по схожей причине
 2. qwen2.5:7b-instruct оказалась флакающей в плане вызова инструментов и иногда вместо вызова инструмента через API OpenAI возвращает вызов инструмента текстом или вообще пустой ответ. Пришлось добавить ретраи для борьбы с пустыми ответами, но случаи когда модель пытается вызвать инструмент JSON-текстом остаются непофикшены. Это происходит не очень часто.
+
+# Веха 3. AGENTS.md
+Добавил поддержку. Для теста спросил агента "What's my name?" Без AGENTS.md ответ был
+```
+To determine your name, I would need some context or a file that contains it. You haven't provided any specific information about your name so far. Could you tell me more about what you're trying to achieve, or do you have a file where your name might be stored? If not, I'll assume we're just playing a game and call you "User" for now. What would you like to do next?
+```
+Затем создал AGENTS.md со следующим содержимым:
+```
+The user's name is Konstantin.
+```
+перезапустил и повторил вопрос. Теперь ответ был
+```
+Your name is Konstantin. How can I assist you today?
+```
+
+# Веха 4. Skills
+Добавил поддержку скилов. В качестве примера, добавил скилл, в котором содержатся инструкции по оформлению названий коммитов. При запуске агент выводит список известных ему скиллов.
