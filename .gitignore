@@ -76,3 +76,6 @@ venv/
 
 # Environment / secrets
 .env
+
+# Default writable sandbox for run-sandboxed.sh
+/sandbox/

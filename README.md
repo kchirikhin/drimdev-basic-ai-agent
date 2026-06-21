@@ -26,8 +26,25 @@ Available tools: `read`, `write`, `update` (replace text in place), `delete`,
 
 > ⚠️ **No permissions yet.** The file tools modify the real filesystem and
 > `execute` runs arbitrary shell commands, both in the directory you launched
-> the agent from. Run it in a scratch directory. A permission/approval layer
-> arrives in Step 6.
+> the agent from. A permission/approval layer arrives in Step 6 — until then,
+> sandbox the agent (see below).
+
+### Running it safely (OS-level sandbox)
+
+To stop the agent from touching anything outside one directory, run it under
+**bubblewrap** with the included wrapper. The system is mounted read-only, the
+rest of your home is hidden, and only the given directory is writable — so
+`execute`/`write`/`delete` physically cannot escape it. Network stays up so the
+model is still reachable.
+
+```bash
+sudo apt install bubblewrap          # if not already installed
+./run-sandboxed.sh ~/agent-work      # only ~/agent-work is writable (default: ./sandbox)
+```
+
+Model/endpoint come from the usual env vars, e.g.
+`OPENAI_MODEL=qwen2.5:7b-instruct ./run-sandboxed.sh ~/agent-work`. This is an
+external guard independent of the agent's own (later) permission system.
 
 > **Note on models:** the tools require a model that emits native OpenAI
 > `tool_calls`. `qwen2.5:7b-instruct` works well in Ollama; the `qwen2.5-coder`
