@@ -107,7 +107,11 @@ poetry run pre-commit run --all-files   # all hooks on the whole repo
 poetry run ruff format                  # format
 poetry run ruff check --fix             # lint (with autofix)
 poetry run mypy agent                   # type-check
+poetry run pytest                       # run the test suite
 ```
+
+Tests live in `tests/` and cover each tool (`tests/test_tools.py`). They run
+against a temporary directory, so they never touch your real files.
 
 Tool configuration lives in `pyproject.toml` (`[tool.ruff]`, `[tool.mypy]`); the
 hook definitions are in `.pre-commit-config.yaml`.

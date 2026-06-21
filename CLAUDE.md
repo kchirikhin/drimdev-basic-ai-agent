@@ -77,7 +77,11 @@ finishing any change, make sure they pass:
 
 ```bash
 poetry run ruff format && poetry run ruff check --fix && poetry run mypy agent
+poetry run pytest
 ```
+
+Tests live in `tests/` (pytest), run against a temp dir. Add a test when you add
+a tool or change tool behaviour.
 
 Config is in `pyproject.toml` (`[tool.ruff]`, `[tool.mypy]`) and
 `.pre-commit-config.yaml`. The hooks call `poetry run ...` so versions match the
