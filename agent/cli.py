@@ -9,10 +9,17 @@ import json
 import threading
 import time
 
+from rich.console import Console
+from rich.markdown import Markdown
+
 from agent import context
 from agent.config import CONTEXT_WINDOW, OPENAI_BASE_URL, OPENAI_MODEL
 from agent.loop import Agent
 from agent.permissions import ApprovalCallback
+
+# Renders the agent's Markdown replies (headings, lists, syntax-highlighted code
+# blocks). Auto-degrades to plain text when output isn't a terminal.
+console = Console()
 
 GREEN = "\033[32m"
 RED = "\033[31m"
@@ -149,7 +156,9 @@ def main() -> None:
         finally:
             spinner.stop()
 
-        print(f"{RED}Agent:{RESET} {reply}\n")
+        print(f"{RED}Agent:{RESET}")
+        console.print(Markdown(reply))
+        print()
 
     print(f"{GREY}Bye!{RESET}")
 

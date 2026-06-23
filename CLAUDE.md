@@ -51,8 +51,9 @@ codebase. Don't pull in agent frameworks; keep the model interaction explicit.
 - `agent/fallback.py` — best-effort recovery of tool calls the model emitted as
   JSON text instead of via the API (`parse_text_tool_call`). Used by `loop.py`
   only when a response has no native tool calls.
-- `agent/cli.py` — REPL, spinner, the grey `⚙` tool-call trace, and the
-  `context` command.
+- `agent/cli.py` — REPL, pausable spinner, the grey `⚙` tool-call trace, the
+  `context` command, the permission prompt, and Markdown rendering of replies
+  via `rich` (auto-degrades to plain text when output isn't a terminal).
 - `agent/context.py` — message-list summary by role + estimated tokens, behind
   the REPL `context` command (shows that subagents don't bloat the main context).
 - `agent/permissions.py` — the gated-tool policy (`TOOLS_REQUIRING_APPROVAL` =

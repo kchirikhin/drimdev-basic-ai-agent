@@ -169,6 +169,10 @@ Agent: Your name is Kon.
 
 Type `exit` (or press `Ctrl-C`) to quit.
 
+Agent replies are rendered as **Markdown** in the terminal (via `rich`) —
+headings, bold, lists, and syntax-highlighted code blocks. It falls back to plain
+text automatically when output isn't a terminal (e.g. piped to a file).
+
 ## Development
 
 Code quality is enforced with **Ruff** (lint + format) and **mypy** (type
