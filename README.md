@@ -107,6 +107,29 @@ and its one-line summary — not by the subagent's internal steps. (The token
 figure is an estimate; the window for the percentage is `OPENAI_CONTEXT_WINDOW`,
 default 32768.)
 
+## Step 6 — Permissions
+
+Side-effecting tools — `write`, `delete`, and `execute` — now ask for approval
+before they run. Before such a tool runs, the agent calls an approval callback;
+the CLI prompts you:
+
+```
+Allow write({"path": "greet.txt", "content": "hello"})? [y]es / [n]o / [a]lways:
+```
+
+- **y** — allow this one call.
+- **n** — deny it; the model is told the call was denied and can adapt.
+- **a** — allow and *remember* this tool for the rest of the session (stops
+  asking for it).
+
+Which tools are gated is the policy in `agent/permissions.py` (add `update`
+there if you want in-place edits gated too). The check is enforced in the
+`Agent`, and the approval callback is passed down into subagents, so a
+subagent's `write`/`execute`/`delete` calls are gated as well. This is the
+safety/control layer — the agent stays autonomous, but you keep a veto. It is
+complementary to the OS-level sandbox (`run-sandboxed.sh`): permissions are a
+per-call human check, the sandbox is a hard boundary.
+
 ## Setup
 
 1. Install dependencies:

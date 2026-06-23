@@ -55,6 +55,11 @@ codebase. Don't pull in agent frameworks; keep the model interaction explicit.
   `context` command.
 - `agent/context.py` — message-list summary by role + estimated tokens, behind
   the REPL `context` command (shows that subagents don't bloat the main context).
+- `agent/permissions.py` — the gated-tool policy (`TOOLS_REQUIRING_APPROVAL` =
+  write/delete/execute) and denial message (Step 6). The `Agent` calls an
+  `approve(name, args)` callback before a gated tool (threaded into subagents);
+  the CLI's `make_confirmer` prompts yes/no/always and remembers "always". No
+  callback ⇒ no gating (tests/programmatic use).
 - `agent/client.py`, `agent/config.py` — OpenAI client factory and env config.
 
 Tool calling needs a model that emits native `tool_calls` (e.g.

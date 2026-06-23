@@ -29,7 +29,7 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
-from agent import fallback, skills, subagents, tools
+from agent import fallback, permissions, skills, subagents, tools
 from agent.client import get_client
 from agent.config import OPENAI_MODEL, SYSTEM_PROMPT_PATH
 
@@ -143,21 +143,46 @@ class Agent:
         return {t["function"]["name"] for t in self.tools}
 
     def _dispatch_tool(
-        self, name: str, arguments: dict, on_tool_event: ToolEvent | None
+        self,
+        name: str,
+        arguments: dict,
+        on_tool_event: ToolEvent | None,
+        approve: permissions.ApprovalCallback | None,
     ) -> str:
         """Run one tool call and report it. load_skill and task need this
-        session's state; everything else goes to the stateless dispatcher."""
+        session's state; everything else goes to the stateless dispatcher.
+
+        Side-effecting tools must be approved first; a denied call is reported
+        back to the model so it can react instead of silently failing.
+        """
+        if (
+            approve is not None
+            and name in permissions.TOOLS_REQUIRING_APPROVAL
+            and not approve(name, arguments)
+        ):
+            result = permissions.DENIED_RESULT
+            if on_tool_event is not None:
+                on_tool_event(name, arguments, result)
+            return result
+
         if name == "load_skill":
             result = self.skills.load(arguments.get("name", ""))
         elif name == "task":
-            result = self._run_subagent(arguments.get("description", ""), on_tool_event)
+            result = self._run_subagent(
+                arguments.get("description", ""), on_tool_event, approve
+            )
         else:
             result = tools.execute_tool(name, arguments)
         if on_tool_event is not None:
             on_tool_event(name, arguments, result)
         return result
 
-    def chat(self, user_message: str, on_tool_event: ToolEvent | None = None) -> str:
+    def chat(
+        self,
+        user_message: str,
+        on_tool_event: ToolEvent | None = None,
+        approve: permissions.ApprovalCallback | None = None,
+    ) -> str:
         """Run one turn, looping over tool calls until the model answers."""
         self.messages.append({"role": "user", "content": user_message})
 
@@ -199,7 +224,7 @@ class Agent:
                         ],
                     }
                 )
-                result = self._dispatch_tool(name, arguments, on_tool_event)
+                result = self._dispatch_tool(name, arguments, on_tool_event, approve)
                 self.messages.append(
                     {"role": "tool", "tool_call_id": call_id, "content": result}
                 )
@@ -227,7 +252,7 @@ class Agent:
             for tool_call in calls:
                 name = tool_call.function.name
                 arguments = json.loads(tool_call.function.arguments or "{}")
-                result = self._dispatch_tool(name, arguments, on_tool_event)
+                result = self._dispatch_tool(name, arguments, on_tool_event, approve)
                 self.messages.append(
                     {
                         "role": "tool",
@@ -238,13 +263,19 @@ class Agent:
 
         return "(stopped: reached the tool-call limit for this turn)"
 
-    def _run_subagent(self, description: str, on_tool_event: ToolEvent | None) -> str:
+    def _run_subagent(
+        self,
+        description: str,
+        on_tool_event: ToolEvent | None,
+        approve: permissions.ApprovalCallback | None,
+    ) -> str:
         """Spawn a fresh, isolated Agent for one task and return its summary.
 
         The subagent has its own message list (it cannot see this conversation),
         so only the `description` and its tools inform it — and only its final
         reply comes back. We forward its tool events with a `↳` marker so the
-        nested work is visible, even though it never enters our context.
+        nested work is visible, and pass `approve` down so the subagent's
+        side-effecting tools are gated too.
         """
         subagent = Agent(depth=self.depth + 1)
 
@@ -253,4 +284,4 @@ class Agent:
             if on_tool_event is not None:
                 on_tool_event(f"↳ {tool_name}", args, result)
 
-        return subagent.chat(description, on_tool_event=sub_event)
+        return subagent.chat(description, on_tool_event=sub_event, approve=approve)

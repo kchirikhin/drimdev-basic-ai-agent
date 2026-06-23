@@ -12,10 +12,12 @@ import time
 from agent import context
 from agent.config import CONTEXT_WINDOW, OPENAI_BASE_URL, OPENAI_MODEL
 from agent.loop import Agent
+from agent.permissions import ApprovalCallback
 
 GREEN = "\033[32m"
 RED = "\033[31m"
 GREY = "\033[90m"
+YELLOW = "\033[33m"
 RESET = "\033[0m"
 
 CLEAR_LINE = "\r\033[K"  # carriage return + clear to end of line
@@ -23,14 +25,48 @@ CONTEXT_COMMANDS = {"context", "/context"}
 EXIT_COMMANDS = {"exit", "quit", "q"}
 
 
-def spinner(stop_event: threading.Event) -> None:
-    """Animate a 'thinking' indicator until stop_event is set."""
-    for frame in itertools.cycle("⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏"):
-        if stop_event.is_set():
-            break
-        print(f"\r{GREY}{frame} thinking...{RESET}", end="", flush=True)
-        time.sleep(0.1)
-    print(CLEAR_LINE, end="", flush=True)  # clear the spinner line
+class Spinner:
+    """A 'thinking…' indicator on a background thread that can be paused.
+
+    Pausing matters because tool approval prompts need the terminal: we stop
+    animating and clear the line so the prompt and the user's typing stay clean.
+    """
+
+    FRAMES = "⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏"
+
+    def __init__(self) -> None:
+        self._stop = threading.Event()
+        self._paused = threading.Event()
+        self._thread: threading.Thread | None = None
+
+    def start(self) -> None:
+        self._stop.clear()
+        self._thread = threading.Thread(target=self._run)
+        self._thread.start()
+
+    def stop(self) -> None:
+        self._stop.set()
+        if self._thread is not None:
+            self._thread.join()
+        print(CLEAR_LINE, end="", flush=True)
+
+    def pause(self) -> None:
+        self._paused.set()
+        time.sleep(0.12)  # let any in-flight frame finish before clearing
+        print(CLEAR_LINE, end="", flush=True)
+
+    def resume(self) -> None:
+        self._paused.clear()
+
+    def _run(self) -> None:
+        for frame in itertools.cycle(self.FRAMES):
+            if self._stop.is_set():
+                break
+            if self._paused.is_set():
+                time.sleep(0.05)
+                continue
+            print(f"\r{GREY}{frame} thinking...{RESET}", end="", flush=True)
+            time.sleep(0.1)
 
 
 def print_tool_event(name: str, arguments: dict, result: str) -> None:
@@ -43,8 +79,43 @@ def print_tool_event(name: str, arguments: dict, result: str) -> None:
     print(f"{CLEAR_LINE}{GREY}⚙ {name}({args}) → {summary}{RESET}", flush=True)
 
 
+def make_confirmer(spinner: Spinner) -> ApprovalCallback:
+    """Build an approve(name, arguments) callback that prompts the user.
+
+    Remembers tools the user chose to 'always' allow, so it stops asking for
+    them this session. The spinner is paused around the prompt.
+    """
+    always_allowed: set[str] = set()
+
+    def confirm(name: str, arguments: dict) -> bool:
+        if name in always_allowed:
+            return True
+        spinner.pause()
+        try:
+            args = json.dumps(arguments, ensure_ascii=False)
+            if len(args) > 120:
+                args = args[:117] + "..."
+            answer = (
+                input(f"{YELLOW}Allow {name}({args})? [y]es / [n]o / [a]lways: {RESET}")
+                .strip()
+                .lower()
+            )
+        except EOFError:  # no input available -> deny, the safe default
+            answer = "n"
+        finally:
+            spinner.resume()
+        if answer in ("a", "always"):
+            always_allowed.add(name)
+            return True
+        return answer in ("y", "yes")
+
+    return confirm
+
+
 def main() -> None:
     agent = Agent()
+    spinner = Spinner()
+    confirm = make_confirmer(spinner)
 
     print(f"{GREY}Basic AI Agent — model: {OPENAI_MODEL} @ {OPENAI_BASE_URL}{RESET}")
     if agent.agents_md_path is not None:
@@ -70,14 +141,13 @@ def main() -> None:
         if not user_input.strip():
             continue
 
-        stop_event = threading.Event()
-        spinner_thread = threading.Thread(target=spinner, args=(stop_event,))
-        spinner_thread.start()
+        spinner.start()
         try:
-            reply = agent.chat(user_input, on_tool_event=print_tool_event)
+            reply = agent.chat(
+                user_input, on_tool_event=print_tool_event, approve=confirm
+            )
         finally:
-            stop_event.set()
-            spinner_thread.join()
+            spinner.stop()
 
         print(f"{RED}Agent:{RESET} {reply}\n")
 

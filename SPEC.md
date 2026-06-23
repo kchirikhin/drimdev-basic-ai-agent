@@ -124,6 +124,9 @@ ask / allow / deny and optional per-tool rules.
 
 - **Learning goal:** understand the safety/control layer — how an agent stays
   under human control while still being autonomous.
+- **Mechanism:** the `Agent` calls an `approve(name, args)` callback before any
+  gated tool (`write`/`delete`/`execute`); the CLI prompts yes/no/always and
+  remembers "always". The callback is threaded into subagents too.
 - **Done when:** dangerous actions prompt for confirmation, and the user can
   allow/deny per call (and ideally remember the choice).
 
