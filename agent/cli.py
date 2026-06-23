@@ -9,7 +9,8 @@ import json
 import threading
 import time
 
-from agent.config import OPENAI_BASE_URL, OPENAI_MODEL
+from agent import context
+from agent.config import CONTEXT_WINDOW, OPENAI_BASE_URL, OPENAI_MODEL
 from agent.loop import Agent
 
 GREEN = "\033[32m"
@@ -18,6 +19,7 @@ GREY = "\033[90m"
 RESET = "\033[0m"
 
 CLEAR_LINE = "\r\033[K"  # carriage return + clear to end of line
+CONTEXT_COMMANDS = {"context", "/context"}
 EXIT_COMMANDS = {"exit", "quit", "q"}
 
 
@@ -49,7 +51,7 @@ def main() -> None:
         print(f"{GREY}Loaded project instructions from {agent.agents_md_path}{RESET}")
     if agent.skills:
         print(f"{GREY}Available skills: {', '.join(agent.skills.names)}{RESET}")
-    print(f"{GREY}Type 'exit' or press Ctrl-C to quit.{RESET}\n")
+    print(f"{GREY}Type 'context' for context usage, 'exit' to quit.{RESET}\n")
 
     while True:
         try:
@@ -58,8 +60,13 @@ def main() -> None:
             print()  # newline so the shell prompt starts cleanly
             break
 
-        if user_input.strip().lower() in EXIT_COMMANDS:
+        command = user_input.strip().lower()
+        if command in EXIT_COMMANDS:
             break
+        if command in CONTEXT_COMMANDS:
+            summary = context.summarize_messages(agent.messages)
+            print(f"{GREY}{context.format_summary(summary, CONTEXT_WINDOW)}{RESET}\n")
+            continue
         if not user_input.strip():
             continue
 

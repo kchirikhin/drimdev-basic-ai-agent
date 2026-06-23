@@ -100,6 +100,13 @@ In the trace, the subagent's own tool calls are shown with a `↳` marker, and t
 delegating `⚙ task(...)` call shows the summary that comes back. Delegation depth
 is capped (`subagents.MAX_DEPTH`) so subagents can't spawn endlessly.
 
+Type **`context`** in the REPL to see the current context usage broken down by
+role with an approximate token count. It's a good way to *see* the isolation:
+after a subagent runs many tools, the main context grows only by the `task` call
+and its one-line summary — not by the subagent's internal steps. (The token
+figure is an estimate; the window for the percentage is `OPENAI_CONTEXT_WINDOW`,
+default 32768.)
+
 ## Setup
 
 1. Install dependencies:

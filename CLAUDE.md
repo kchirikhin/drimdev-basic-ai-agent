@@ -51,7 +51,10 @@ codebase. Don't pull in agent frameworks; keep the model interaction explicit.
 - `agent/fallback.py` — best-effort recovery of tool calls the model emitted as
   JSON text instead of via the API (`parse_text_tool_call`). Used by `loop.py`
   only when a response has no native tool calls.
-- `agent/cli.py` — REPL, spinner, and the grey `⚙` tool-call trace.
+- `agent/cli.py` — REPL, spinner, the grey `⚙` tool-call trace, and the
+  `context` command.
+- `agent/context.py` — message-list summary by role + estimated tokens, behind
+  the REPL `context` command (shows that subagents don't bloat the main context).
 - `agent/client.py`, `agent/config.py` — OpenAI client factory and env config.
 
 Tool calling needs a model that emits native `tool_calls` (e.g.
