@@ -78,3 +78,17 @@ def test_tool_call_then_final_text(tmp_path, monkeypatch):
     assert reply == "Done."
     assert (tmp_path / "out.txt").read_text(encoding="utf-8") == "hi"
     assert events[0][0] == "write"  # the tool event fired
+
+
+def test_text_tool_call_is_recovered_and_executed(tmp_path, monkeypatch):
+    # The model emits the tool call as JSON text (no native tool_calls); the
+    # loop should recover it, run the tool, then continue to the final answer.
+    text_call = '{"name": "write", "arguments": {"path": "out.txt", "content": "hi"}}'
+    agent = _make_agent(tmp_path, monkeypatch, [_text(text_call), _text("Done.")])
+    events = []
+
+    reply = agent.chat("make the file", on_tool_event=lambda *a: events.append(a))
+
+    assert reply == "Done."
+    assert (tmp_path / "out.txt").read_text(encoding="utf-8") == "hi"
+    assert events[0][0] == "write"

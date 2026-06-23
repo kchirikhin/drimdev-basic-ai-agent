@@ -48,14 +48,23 @@ codebase. Don't pull in agent frameworks; keep the model interaction explicit.
   note (Step 5). The `Agent` spawns a subagent (a fresh `Agent(depth=...)`) in
   `loop.py`'s `_run_subagent`; only the subagent's final summary returns to the
   parent. `depth` gates further delegation.
+- `agent/fallback.py` — best-effort recovery of tool calls the model emitted as
+  JSON text instead of via the API (`parse_text_tool_call`). Used by `loop.py`
+  only when a response has no native tool calls.
 - `agent/cli.py` — REPL, spinner, and the grey `⚙` tool-call trace.
 - `agent/client.py`, `agent/config.py` — OpenAI client factory and env config.
 
 Tool calling needs a model that emits native `tool_calls` (e.g.
 `qwen2.5:7b-instruct`); `qwen2.5-coder` does not, despite advertising the
-capability. The local model is also intermittently flaky — it occasionally
-returns a blank response (no text, no tool call), so `loop.py` retries blanks
-(`BLANK_RETRIES`) before showing `EMPTY_REPLY_NOTICE` instead of an empty line.
+capability. The local model is also intermittently flaky in two ways, both
+handled in `loop.py`:
+- it occasionally returns a blank response (no text, no tool call) → retried
+  (`BLANK_RETRIES`) before showing `EMPTY_REPLY_NOTICE`;
+- it occasionally emits a tool call as JSON *text* instead of a native call →
+  `agent/fallback.py` recovers the `{name, arguments}` shape and runs it (only
+  when there are no native calls, and only for a known tool name). The system
+  prompt deliberately does *not* list tools in text, which reduces how often
+  this happens.
 
 ## Environment & running
 

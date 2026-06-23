@@ -24,11 +24,12 @@ main context clean.
 """
 
 import json
+import uuid
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
-from agent import skills, subagents, tools
+from agent import fallback, skills, subagents, tools
 from agent.client import get_client
 from agent.config import OPENAI_MODEL, SYSTEM_PROMPT_PATH
 
@@ -138,6 +139,24 @@ class Agent:
                 return message
         return message
 
+    def _tool_names(self) -> set[str]:
+        return {t["function"]["name"] for t in self.tools}
+
+    def _dispatch_tool(
+        self, name: str, arguments: dict, on_tool_event: ToolEvent | None
+    ) -> str:
+        """Run one tool call and report it. load_skill and task need this
+        session's state; everything else goes to the stateless dispatcher."""
+        if name == "load_skill":
+            result = self.skills.load(arguments.get("name", ""))
+        elif name == "task":
+            result = self._run_subagent(arguments.get("description", ""), on_tool_event)
+        else:
+            result = tools.execute_tool(name, arguments)
+        if on_tool_event is not None:
+            on_tool_event(name, arguments, result)
+        return result
+
     def chat(self, user_message: str, on_tool_event: ToolEvent | None = None) -> str:
         """Run one turn, looping over tool calls until the model answers."""
         self.messages.append({"role": "user", "content": user_message})
@@ -145,19 +164,49 @@ class Agent:
         for _ in range(MAX_ITERATIONS):
             message = self._complete()
 
-            # No tool calls => the model produced its final answer.
-            if not message.tool_calls:
-                reply = message.content or ""
-                self.messages.append({"role": "assistant", "content": reply})
-                # Don't show the user a blank line if the model came back empty.
-                return reply if reply.strip() else EMPTY_REPLY_NOTICE
-
             # We only register function tools, so keep just those calls (the SDK
             # union also allows custom tool calls). This also narrows the type.
-            calls = [tc for tc in message.tool_calls if tc.type == "function"]
+            calls = [tc for tc in (message.tool_calls or []) if tc.type == "function"]
 
-            # Record the assistant's request (including the tool_calls the next
-            # messages will answer), then run each tool.
+            if not calls:
+                # No native tool calls. The local model sometimes emits a call as
+                # text instead — try to recover it before treating this as final.
+                recovered = fallback.parse_text_tool_call(
+                    message.content, self._tool_names()
+                )
+                if recovered is None:
+                    reply = message.content or ""
+                    self.messages.append({"role": "assistant", "content": reply})
+                    # Don't show the user a blank line if it came back empty.
+                    return reply if reply.strip() else EMPTY_REPLY_NOTICE
+                # Normalise the text call into a proper tool-call/result pair so
+                # the history stays well-formed and the loop continues.
+                name, arguments = recovered
+                call_id = f"fallback-{uuid.uuid4().hex[:8]}"
+                self.messages.append(
+                    {
+                        "role": "assistant",
+                        "content": None,
+                        "tool_calls": [
+                            {
+                                "id": call_id,
+                                "type": "function",
+                                "function": {
+                                    "name": name,
+                                    "arguments": json.dumps(arguments),
+                                },
+                            }
+                        ],
+                    }
+                )
+                result = self._dispatch_tool(name, arguments, on_tool_event)
+                self.messages.append(
+                    {"role": "tool", "tool_call_id": call_id, "content": result}
+                )
+                continue
+
+            # Native path: record the assistant's request (with its tool_calls),
+            # then run each tool and append its result.
             self.messages.append(
                 {
                     "role": "assistant",
@@ -175,22 +224,10 @@ class Agent:
                     ],
                 }
             )
-
             for tool_call in calls:
                 name = tool_call.function.name
                 arguments = json.loads(tool_call.function.arguments or "{}")
-                # load_skill and task need this session's state, so they are
-                # handled here; everything else goes to the stateless dispatcher.
-                if name == "load_skill":
-                    result = self.skills.load(arguments.get("name", ""))
-                elif name == "task":
-                    result = self._run_subagent(
-                        arguments.get("description", ""), on_tool_event
-                    )
-                else:
-                    result = tools.execute_tool(name, arguments)
-                if on_tool_event is not None:
-                    on_tool_event(name, arguments, result)
+                result = self._dispatch_tool(name, arguments, on_tool_event)
                 self.messages.append(
                     {
                         "role": "tool",

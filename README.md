@@ -49,6 +49,12 @@ external guard independent of the agent's own (later) permission system.
 > **Note on models:** the tools require a model that emits native OpenAI
 > `tool_calls`. `qwen2.5:7b-instruct` works well in Ollama; the `qwen2.5-coder`
 > models do *not* reliably emit tool calls. Set `OPENAI_MODEL` accordingly.
+>
+> Even good local models occasionally emit a tool call as JSON *text* instead of
+> a native call. The system prompt avoids listing tools in text (which reduces
+> this), and `agent/fallback.py` recovers the common `{name, arguments}` shape
+> when it still happens — so the agent keeps working. Native calls stay the
+> primary path.
 
 ## Step 3 — AGENTS.md
 
