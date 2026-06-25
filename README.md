@@ -4,8 +4,13 @@ A minimal coding agent (in the spirit of Claude Code) built **from scratch for
 learning**. The goal is to grasp the core ideas behind such agents by
 re-implementing them step by step. See [SPEC.md](SPEC.md) for the full roadmap.
 
-The agent talks to a **local, OpenAI-compatible LLM** (default: Ollama with
-`qwen2.5-coder:7b`).
+The agent talks to a **local, OpenAI-compatible LLM** (default endpoint: Ollama).
+All six roadmap steps are implemented: an **agent loop**, **tools** via the
+OpenAI function-calling protocol, **AGENTS.md** project instructions, **skills**
+with progressive disclosure, **subagents** with isolated context, and **per-call
+permissions**. The terminal REPL renders Markdown replies, shows a `context`
+usage breakdown, and can run inside an OS-level sandbox. The sections below walk
+through each step; jump to [Setup](#setup) to just run it.
 
 ## Step 1 — Agent loop
 
@@ -24,10 +29,10 @@ looping until the model produces a final answer (see `agent/loop.py` and
 Available tools: `read`, `write`, `update` (replace text in place), `delete`,
 `list`, `execute` (run a shell command).
 
-> ⚠️ **No permissions yet.** The file tools modify the real filesystem and
-> `execute` runs arbitrary shell commands, both in the directory you launched
-> the agent from. A permission/approval layer arrives in Step 6 — until then,
-> sandbox the agent (see below).
+> ⚠️ **These tools touch the real filesystem and shell.** `write`/`delete`/
+> `execute` act in the directory you launched the agent from. Two layers guard
+> this: per-call approval prompts (Step 6) and an optional OS-level sandbox
+> (below). For untrusted or unattended runs, use the sandbox.
 
 ### Running it safely (OS-level sandbox)
 
@@ -44,7 +49,8 @@ sudo apt install bubblewrap          # if not already installed
 
 Model/endpoint come from the usual env vars, e.g.
 `OPENAI_MODEL=qwen2.5:7b-instruct ./run-sandboxed.sh ~/agent-work`. This is an
-external guard independent of the agent's own (later) permission system.
+external guard, independent of the agent's own approval prompts (Step 6): the
+sandbox is a hard boundary, the prompts are a per-call human check.
 
 > **Note on models:** the tools require a model that emits native OpenAI
 > `tool_calls`. `qwen2.5:7b-instruct` works well in Ollama; the `qwen2.5-coder`
@@ -107,6 +113,26 @@ and its one-line summary — not by the subagent's internal steps. (The token
 figure is an estimate; the window for the percentage is `OPENAI_CONTEXT_WINDOW`,
 default 32768.)
 
+For example, delegating "create 6 files and read them all back" runs ~12 tool
+calls inside the subagent, yet the main context barely moves:
+
+```text
+You: context
+  system   1 msg  ≈ 285 tok          # before delegating
+
+You: Use the task tool to delegate: create report1..6.txt and read them back.
+⚙ ↳ write(report1.txt) → ...          # the subagent's noisy steps (↳),
+⚙ ↳ read(report1.txt)  → ...          #   ~12 calls, all in ITS context
+⚙ task({"description": ...}) → Verifying contents: ...   # only the summary returns
+
+You: context
+  system   1 msg  ≈ 285 tok
+  user     1 msg  ≈  46 tok
+  assistant 2 msg ≈  84 tok
+  tool     1 msg  ≈ 109 tok           # = the subagent's summary, nothing more
+  total    5 msg  ≈ 524 tok           # after: +4 msgs, not +24
+```
+
 ## Step 6 — Permissions
 
 Side-effecting tools — `write`, `delete`, and `execute` — now ask for approval
@@ -138,8 +164,10 @@ per-call human check, the sandbox is a hard boundary.
    poetry install
    ```
 
-2. (Optional) Configure the backend. The defaults target a local Ollama server,
-   so if you run Ollama with `qwen2.5-coder:7b` you can skip this. Otherwise:
+2. Configure the backend. The defaults target a local Ollama server. **For the
+   full agent (tools and everything built on them) pick a model that emits native
+   tool calls — `qwen2.5:7b-instruct` works well; the default `qwen2.5-coder:7b`
+   does not** (see the model note above). Copy the example env and set it:
 
    ```bash
    cp .env.example .env   # then edit OPENAI_BASE_URL / OPENAI_API_KEY / OPENAI_MODEL
@@ -194,8 +222,10 @@ poetry run mypy agent                   # type-check
 poetry run pytest                       # run the test suite
 ```
 
-Tests live in `tests/` and cover each tool (`tests/test_tools.py`). They run
-against a temporary directory, so they never touch your real files.
+Tests live in `tests/` (pytest) and cover the tools, AGENTS.md discovery, skills
+and progressive disclosure, the agent loop (including recovery from flaky model
+output), subagents and context isolation, the context summary, and permissions.
+They run against a temporary directory, so they never touch your real files.
 
 Tool configuration lives in `pyproject.toml` (`[tool.ruff]`, `[tool.mypy]`); the
 hook definitions are in `.pre-commit-config.yaml`.
